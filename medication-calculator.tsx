@@ -1949,7 +1949,7 @@ export default function Component() {
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
-        <CardTitle>薬剤計算機</CardTitle>
+        <CardTitle>薬剤計算機-test</CardTitle>
       </CardHeader>
       <CardContent>
         <form
