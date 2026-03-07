@@ -1,2 +1,29 @@
-node_modules
+# --- 依存ライブラリ (インストール済みパッケージ) ---
+node_modules/
+
+# --- Next.js のビルド成果物 ---
+# これらはデプロイ時に Vercel 側で再生成されるため不要です
+.next/
+out/
+build/
+
+# --- 環境変数 (最重要！) ---
+# Supabase の Key などが含まれるため、絶対に公開してはいけません
+.env
 .env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# --- OS 固有の一時ファイル ---
+.DS_Store
+Thumbs.db
+
+# --- エディタ・ツール設定 ---
+.vscode/
+.idea/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.vercel
