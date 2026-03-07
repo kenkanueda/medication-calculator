@@ -2,6 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect, useRef } from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -298,6 +299,11 @@ export default function Component() {
           </ul>
         </div>
       </CardContent>
+      <div className="px-6 pb-4 text-center">
+        <Link href="/contact" className="text-xs text-gray-400 hover:text-gray-600">
+          お問い合わせ
+        </Link>
+      </div>
     </Card>
   )
 }
