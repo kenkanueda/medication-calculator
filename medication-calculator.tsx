@@ -214,10 +214,16 @@ export default function Component() {
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
 
-  if (isLoading) return <div className="p-10 text-center">データを取得中...</div>
+  if (isLoading) return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <p className="text-gray-500">データを取得中...</p>
+    </div>
+  )
 
   return (
-    <Card className="w-full max-w-md mx-auto">
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+    <div className="w-full max-w-md">
+    <Card>
       <CardHeader>
         <CardTitle>薬剤計算機-test</CardTitle>
       </CardHeader>
@@ -299,11 +305,16 @@ export default function Component() {
           </ul>
         </div>
       </CardContent>
-      <div className="px-6 pb-4 text-center">
+      <div className="px-6 pb-4 flex justify-between">
+        <Link href="/admin" className="text-xs text-gray-400 hover:text-gray-600">
+          管理画面
+        </Link>
         <Link href="/contact" className="text-xs text-gray-400 hover:text-gray-600">
           お問い合わせ
         </Link>
       </div>
     </Card>
+    </div>
+    </div>
   )
 }
