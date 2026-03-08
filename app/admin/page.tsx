@@ -314,7 +314,7 @@ function DangerousDosesTab() {
 // ================================================================
 function MedicationsTab() {
   const [rows, setRows] = useState<MedicationRow[]>([])
-  const [ingredients, setIngredients] = useState<IngredientRow[]>([])
+  const [doseOptions, setDoseOptions] = useState<IngredientRow[]>([])
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<MedicationRow | null>(null)
@@ -325,15 +325,15 @@ function MedicationsTab() {
 
   async function load() {
     setLoading(true)
-    const [{ data: medsData }, { data: ingData }] = await Promise.all([
+    const [{ data: medsData }, { data: dosesData }] = await Promise.all([
       supabase
         .from("medications")
         .select(`id, brand_name, medication_ingredients ( id, ingredient_id, amount, unit, ingredients ( id, name ) )`)
         .order("brand_name"),
-      supabase.from("ingredients").select("id, name").order("name"),
+      supabase.from("dangerousDoses").select("id, name").order("name"),
     ])
     setRows((medsData as MedicationRow[]) ?? [])
-    setIngredients(ingData ?? [])
+    setDoseOptions(dosesData ?? [])
     setLoading(false)
   }
 
@@ -381,9 +381,10 @@ function MedicationsTab() {
     // 3. 有効な行ごとに ingredient upsert → medication_ingredients insert
     for (const row of ingRows) {
       if (!row.ingredient_name.trim() || row.amount === null) continue
+      const doseId = doseOptions.find(d => d.name === row.ingredient_name)?.id ?? null
       const { data: ingData } = await supabase
         .from("ingredients")
-        .upsert({ name: row.ingredient_name.trim() }, { onConflict: "name" })
+        .upsert({ name: row.ingredient_name.trim(), dangerous_dose_id: doseId }, { onConflict: "name" })
         .select("id")
         .single()
       if (!ingData) continue
@@ -503,7 +504,7 @@ function MedicationsTab() {
                         <SelectValue placeholder="成分を選択" />
                       </SelectTrigger>
                       <SelectContent>
-                        {ingredients.map(ing => (
+                        {doseOptions.map((ing: IngredientRow) => (
                           <SelectItem key={ing.id} value={ing.name}>{ing.name}</SelectItem>
                         ))}
                       </SelectContent>
