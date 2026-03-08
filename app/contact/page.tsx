@@ -21,11 +21,11 @@ export default function ContactPage() {
               ご意見・ご要望・不具合の報告などは、以下のメールアドレスまでお送りください。
             </p>
             <a
-              href="mailto:tomtom.kito@gmail.com"
+              href="mailto:yakuzaicalculator@gmail.com"
               className="flex items-center gap-2 text-blue-600 hover:underline text-sm"
             >
               <Mail className="h-4 w-4" />
-              tomtom.kito@gmail.com
+              yakuzaicalculator@gmail.com
             </a>
           </CardContent>
         </Card>
