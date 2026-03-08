@@ -41,11 +41,26 @@ type DangerousDoseRow = {
 }
 
 type MedicationRow = {
-  id: string
-  brandName: string
-  drugMasterId: string
+  id: number
+  brand_name: string
+  medication_ingredients: {
+    id: number
+    ingredient_id: number
+    amount: number | null
+    unit: string | null
+    ingredients: { id: number; name: string } | null
+  }[]
+}
+
+type IngredientRow = {
+  id: number
+  name: string
+}
+
+type MedIngFormRow = {
+  ingredient_name: string
   amount: number | null
-  unit: string | null
+  unit: string
 }
 
 const emptyDose: Omit<DangerousDoseRow, "id"> = {
@@ -60,12 +75,7 @@ const emptyDose: Omit<DangerousDoseRow, "id"> = {
   treatment: null,
 }
 
-const emptyMed: Omit<MedicationRow, "id"> = {
-  brandName: "",
-  drugMasterId: "",
-  amount: null,
-  unit: null,
-}
+const emptyIngRow: MedIngFormRow = { ingredient_name: "", amount: null, unit: "mg" }
 
 // ---- ヘルパー ----
 function numOrNull(v: string): number | null {
@@ -304,22 +314,26 @@ function DangerousDosesTab() {
 // ================================================================
 function MedicationsTab() {
   const [rows, setRows] = useState<MedicationRow[]>([])
-  const [doses, setDoses] = useState<DangerousDoseRow[]>([])
+  const [ingredients, setIngredients] = useState<IngredientRow[]>([])
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<MedicationRow | null>(null)
-  const [form, setForm] = useState<Omit<MedicationRow, "id">>(emptyMed)
+  const [brandName, setBrandName] = useState("")
+  const [ingRows, setIngRows] = useState<MedIngFormRow[]>([{ ...emptyIngRow }])
   const [saving, setSaving] = useState(false)
-  const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [deleteId, setDeleteId] = useState<number | null>(null)
 
   async function load() {
     setLoading(true)
-    const [{ data: medsData }, { data: dosesData }] = await Promise.all([
-      supabase.from("medications").select("*").order("brandName"),
-      supabase.from("dangerousDoses").select("*").order("name"),
+    const [{ data: medsData }, { data: ingData }] = await Promise.all([
+      supabase
+        .from("medications")
+        .select(`id, brand_name, medication_ingredients ( id, ingredient_id, amount, unit, ingredients ( id, name ) )`)
+        .order("brand_name"),
+      supabase.from("ingredients").select("id, name").order("name"),
     ])
-    setRows(medsData ?? [])
-    setDoses(dosesData ?? [])
+    setRows((medsData as MedicationRow[]) ?? [])
+    setIngredients(ingData ?? [])
     setLoading(false)
   }
 
@@ -327,47 +341,81 @@ function MedicationsTab() {
 
   function openAdd() {
     setEditing(null)
-    setForm(emptyMed)
+    setBrandName("")
+    setIngRows([{ ...emptyIngRow }])
     setOpen(true)
   }
 
   function openEdit(row: MedicationRow) {
     setEditing(row)
-    setForm({
-      brandName: row.brandName,
-      drugMasterId: row.drugMasterId,
-      amount: row.amount,
-      unit: row.unit,
-    })
+    setBrandName(row.brand_name)
+    setIngRows(
+      row.medication_ingredients.length > 0
+        ? row.medication_ingredients.map(mi => ({
+            ingredient_name: mi.ingredients?.name ?? "",
+            amount: mi.amount,
+            unit: mi.unit ?? "mg",
+          }))
+        : [{ ...emptyIngRow }]
+    )
     setOpen(true)
   }
 
   async function handleSave() {
+    if (!brandName.trim()) return
     setSaving(true)
-    const payload = {
-      brandName: form.brandName,
-      drugMasterId: form.drugMasterId,
-      amount: form.amount,
-      unit: strOrNull(form.unit ?? ""),
+
+    // 1. medication を upsert（brand_name がユニーク）
+    const { data: medData, error: medErr } = await supabase
+      .from("medications")
+      .upsert({ ...(editing ? { id: editing.id } : {}), brand_name: brandName.trim() }, { onConflict: "brand_name" })
+      .select("id")
+      .single()
+
+    if (medErr || !medData) { setSaving(false); return }
+    const medId = medData.id
+
+    // 2. 既存の medication_ingredients を全削除
+    await supabase.from("medication_ingredients").delete().eq("medication_id", medId)
+
+    // 3. 有効な行ごとに ingredient upsert → medication_ingredients insert
+    for (const row of ingRows) {
+      if (!row.ingredient_name.trim() || row.amount === null) continue
+      const { data: ingData } = await supabase
+        .from("ingredients")
+        .upsert({ name: row.ingredient_name.trim() }, { onConflict: "name" })
+        .select("id")
+        .single()
+      if (!ingData) continue
+      await supabase.from("medication_ingredients").insert({
+        medication_id: medId,
+        ingredient_id: ingData.id,
+        amount: row.amount,
+        unit: row.unit || "mg",
+      })
     }
-    if (editing) {
-      await supabase.from("medications").update(payload).eq("id", editing.id)
-    } else {
-      await supabase.from("medications").insert([payload])
-    }
+
     setSaving(false)
     setOpen(false)
     load()
   }
 
-  async function handleDelete(id: string) {
+  async function handleDelete(id: number) {
     await supabase.from("medications").delete().eq("id", id)
     setDeleteId(null)
     load()
   }
 
-  function ingredientName(drugMasterId: string) {
-    return doses.find(d => d.id === drugMasterId)?.name ?? drugMasterId
+  function updateIngRow(idx: number, field: keyof MedIngFormRow, value: string | number | null) {
+    setIngRows(prev => prev.map((r, i) => i === idx ? { ...r, [field]: value } : r))
+  }
+
+  function addIngRow() {
+    setIngRows(prev => [...prev, { ...emptyIngRow }])
+  }
+
+  function removeIngRow(idx: number) {
+    setIngRows(prev => prev.filter((_, i) => i !== idx))
   }
 
   return (
@@ -386,19 +434,21 @@ function MedicationsTab() {
             <thead>
               <tr className="border-b bg-gray-50 text-left">
                 <th className="px-3 py-2 whitespace-nowrap">商品名</th>
-                <th className="px-3 py-2 whitespace-nowrap">有効成分</th>
-                <th className="px-3 py-2 whitespace-nowrap">含有量</th>
-                <th className="px-3 py-2 whitespace-nowrap">単位</th>
+                <th className="px-3 py-2">有効成分（含有量）</th>
                 <th className="px-3 py-2"></th>
               </tr>
             </thead>
             <tbody>
               {rows.map(row => (
-                <tr key={row.id} className="border-b hover:bg-gray-50">
-                  <td className="px-3 py-2 font-medium">{row.brandName}</td>
-                  <td className="px-3 py-2">{ingredientName(row.drugMasterId)}</td>
-                  <td className="px-3 py-2">{row.amount ?? "—"}</td>
-                  <td className="px-3 py-2">{row.unit ?? "—"}</td>
+                <tr key={row.id} className="border-b hover:bg-gray-50 align-top">
+                  <td className="px-3 py-2 font-medium whitespace-nowrap">{row.brand_name}</td>
+                  <td className="px-3 py-2 text-xs text-gray-600">
+                    {row.medication_ingredients.map((mi, i) => (
+                      <span key={i} className="mr-2">
+                        {mi.ingredients?.name ?? "?"} {mi.amount}{mi.unit}
+                      </span>
+                    ))}
+                  </td>
                   <td className="px-3 py-2">
                     <div className="flex gap-1">
                       <Button variant="ghost" size="icon" onClick={() => openEdit(row)}>
@@ -412,7 +462,7 @@ function MedicationsTab() {
                 </tr>
               ))}
               {rows.length === 0 && (
-                <tr><td colSpan={5} className="px-3 py-4 text-center text-gray-400">データなし</td></tr>
+                <tr><td colSpan={3} className="px-3 py-4 text-center text-gray-400">データなし</td></tr>
               )}
             </tbody>
           </table>
@@ -421,58 +471,73 @@ function MedicationsTab() {
 
       {/* 追加・編集ダイアログ */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? "薬剤を編集" : "薬剤を追加"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 py-2">
+          <div className="space-y-4 py-2">
             <div className="space-y-1">
               <Label>商品名 *</Label>
               <Input
-                value={form.brandName}
-                onChange={e => setForm(prev => ({ ...prev, brandName: e.target.value }))}
+                value={brandName}
+                onChange={e => setBrandName(e.target.value)}
                 placeholder="例: カロナール錠500"
               />
             </div>
-            <div className="space-y-1">
-              <Label>有効成分 *</Label>
-              <Select
-                value={form.drugMasterId}
-                onValueChange={v => setForm(prev => ({ ...prev, drugMasterId: v }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="成分を選択" />
-                </SelectTrigger>
-                <SelectContent>
-                  {doses.map(d => (
-                    <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>含有量</Label>
-                <Input
-                  type="number"
-                  value={form.amount ?? ""}
-                  onChange={e => setForm(prev => ({ ...prev, amount: numOrNull(e.target.value) }))}
-                  placeholder="例: 500"
-                />
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>有効成分</Label>
+                <Button type="button" variant="outline" size="sm" onClick={addIngRow}>
+                  <Plus className="h-3 w-3 mr-1" /> 成分を追加
+                </Button>
               </div>
-              <div className="space-y-1">
-                <Label>単位</Label>
-                <Input
-                  value={form.unit ?? ""}
-                  onChange={e => setForm(prev => ({ ...prev, unit: e.target.value }))}
-                  placeholder="例: mg"
-                />
-              </div>
+              {ingRows.map((row, idx) => (
+                <div key={idx} className="flex gap-2 items-start">
+                  <div className="flex-1 space-y-1">
+                    <Select
+                      value={row.ingredient_name}
+                      onValueChange={v => updateIngRow(idx, "ingredient_name", v)}
+                    >
+                      <SelectTrigger className="text-sm">
+                        <SelectValue placeholder="成分を選択" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ingredients.map(ing => (
+                          <SelectItem key={ing.id} value={ing.name}>{ing.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Input
+                    type="number"
+                    className="w-24"
+                    placeholder="含有量"
+                    value={row.amount ?? ""}
+                    onChange={e => updateIngRow(idx, "amount", numOrNull(e.target.value))}
+                  />
+                  <Input
+                    className="w-16"
+                    placeholder="単位"
+                    value={row.unit}
+                    onChange={e => updateIngRow(idx, "unit", e.target.value)}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeIngRow(idx)}
+                    disabled={ingRows.length === 1}
+                  >
+                    <Trash2 className="h-4 w-4 text-red-400" />
+                  </Button>
+                </div>
+              ))}
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>キャンセル</Button>
-            <Button onClick={handleSave} disabled={saving || !form.brandName || !form.drugMasterId}>
+            <Button onClick={handleSave} disabled={saving || !brandName.trim()}>
               {saving ? "保存中..." : "保存"}
             </Button>
           </DialogFooter>
