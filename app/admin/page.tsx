@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
@@ -23,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Pencil, Trash2, Plus } from "lucide-react"
+import { Pencil, Trash2, Plus, LogOut } from "lucide-react"
 
 // ---- 型定義 ----
 type DangerousDoseRow = {
@@ -499,13 +500,43 @@ function MedicationsTab() {
 // メインページ
 // ================================================================
 export default function AdminPage() {
+  const router = useRouter()
+  const [checking, setChecking] = useState(true)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        router.replace("/admin/login")
+      } else {
+        setChecking(false)
+      }
+    })
+  }, [router])
+
+  async function handleLogout() {
+    await supabase.auth.signOut()
+    router.replace("/admin/login")
+  }
+
+  if (checking) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <p className="text-gray-500">確認中...</p>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-5xl mx-auto">
-        <div className="mb-4">
+        <div className="mb-4 flex items-center justify-between">
           <Link href="/" className="text-sm text-gray-500 hover:text-gray-700">
             ← 薬剤計算機に戻る
           </Link>
+          <Button variant="ghost" size="sm" onClick={handleLogout} className="text-gray-500">
+            <LogOut className="h-4 w-4 mr-1" />
+            ログアウト
+          </Button>
         </div>
 
         <Card>
