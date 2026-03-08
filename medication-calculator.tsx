@@ -49,39 +49,45 @@ export default function Component() {
   useEffect(() => {
     async function fetchMasterData() {
       try {
-        // テーブル名は自身の環境に合わせて適宜変更してください
-        const { data: medsData } = await supabase.from('medications').select('*')
-        const { data: dosesData } = await supabase.from('dangerousDoses').select('*')
+        const [{ data: medsData }, { data: dosesData }] = await Promise.all([
+          supabase.from('medications').select(`
+            brand_name,
+            medication_ingredients (
+              amount,
+              unit,
+              ingredients ( name )
+            )
+          `),
+          supabase.from('dangerousDoses').select('*'),
+        ])
 
         if (medsData && dosesData) {
-          // 既存の dangerousDoses オブジェクト形式に変換
+          // dangerousDoses オブジェクト形式に変換（カラム名はキャメルケース）
           const dObj: Record<string, DangerousDose> = {}
           dosesData.forEach(d => {
             dObj[d.name] = {
               toxic: d.toxic,
               lethal: d.lethal,
-              toxicPerKg: d.toxic_per_kg,
-              lethalPerKg: d.lethal_per_kg,
+              toxicPerKg: d.toxicPerKg,
+              lethalPerKg: d.lethalPerKg,
               unit: d.unit,
-              halfLife: d.half_life,
+              halfLife: d.halfLife,
               symptoms: d.symptoms,
               treatment: d.treatment
             }
           })
 
-    // 2. 薬剤データ (medications) の整形
-            const mObj: Record<string, any> = {}
-            medsData.forEach(m => {
-              // drugMasterId を使って、dosesData から成分名(name)を検索する
-              const ingredient = dosesData.find(d => d.id === m.drugMasterId)
-              
-              if (ingredient) {
-                // brandName をキーにして、成分名と含有量を格納
-                mObj[m.brandName] = {
-                  [ingredient.name]: { amount: m.amount, unit: m.unit }
-                }
+          // medications オブジェクト形式に変換（多対多スキーマ対応）
+          const mObj: Record<string, any> = {}
+          medsData.forEach((m: any) => {
+            mObj[m.brand_name] = {}
+            m.medication_ingredients?.forEach((mi: any) => {
+              const ingName = mi.ingredients?.name
+              if (ingName) {
+                mObj[m.brand_name][ingName] = { amount: mi.amount, unit: mi.unit }
               }
             })
+          })
 
           setDangerousDoses(dObj)
           setMedications(mObj)
@@ -225,7 +231,7 @@ export default function Component() {
     <div className="w-full max-w-md">
     <Card>
       <CardHeader>
-        <CardTitle>薬剤計算機-test</CardTitle>
+        <CardTitle>薬剤計算機</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={(e) => { e.preventDefault(); addMedication(); }} className="space-y-4">
