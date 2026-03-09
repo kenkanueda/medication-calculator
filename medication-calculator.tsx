@@ -9,8 +9,8 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertTriangle, X, Info } from "lucide-react"
-// Supabaseクライアントをインポート（環境に合わせてパスを調整してください）
 import { supabase } from "@/lib/supabase"
+import { DisclaimerModal } from "@/components/disclaimer-modal"
 
 type DangerousDose = {
   toxic?: number
@@ -228,6 +228,7 @@ export default function Component() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+    <DisclaimerModal />
     <div className="w-full max-w-md">
     <Card>
       <CardHeader>
@@ -311,6 +312,12 @@ export default function Component() {
           </ul>
         </div>
       </CardContent>
+      <div className="px-6 pb-2">
+        <p className="text-xs text-gray-400 text-center">
+          本アプリの計算結果は参考値です。最終的な判断は必ず専門家が行ってください。
+          （<Link href="/terms" className="underline hover:text-gray-600">利用規約</Link>）
+        </p>
+      </div>
       <div className="px-6 pb-4 flex justify-between">
         <Link href="/admin" className="text-xs text-gray-400 hover:text-gray-600">
           管理画面
