@@ -296,7 +296,7 @@ export default function Component() {
               <li key={ingredient} className="flex flex-col">
                 <div className="flex justify-between items-center text-sm">
                   <span>{ingredient}:</span>
-                  <span className="font-bold">{amount}{unit}</span>
+                  <span className="font-bold">{parseFloat(amount.toPrecision(10))}{unit}</span>
                 </div>
                 {dosageInfo[ingredient] && (
                   <Alert variant={dosageInfo[ingredient].status === "info" ? "default" : "destructive"} className="mt-2">
